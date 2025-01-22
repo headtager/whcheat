@@ -1,0 +1,316 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = workspace
+local UserInputService = game:GetService("UserInputService")
+local Teams = game:GetService("Teams")
+
+-- Настройки ESP
+local ESP_COLOR_TABLE = {
+    Color3.new(1, 1, 1),               -- Белый
+    Color3.fromRGB(255, 48, 48),        -- Красный
+    Color3.fromRGB(0, 255, 0),         -- Зелёный
+    Color3.fromRGB(0, 0, 255),         -- Синий
+	Color3.fromRGB(255, 165, 0),    	  -- Оранжевый
+	Color3.fromRGB(255, 255, 0),       -- Желтый
+	Color3.fromRGB(0, 255, 255),       -- Голубой
+	Color3.fromRGB(128, 0, 128)       -- Фиолетовый
+}
+local ESP_TRANSPARENCY = 0.65
+local ESP_SIZE = Vector3.new(4, 5, 2)
+local currentESPColorIndex = 1
+local espEnabled = false
+local showControlGui = true
+local noclipEnabled = false
+local noclipSteppedConnection = nil
+
+local trackedCharacters = {}
+
+-- Создание GUI для отображения информации
+local function createInfoGui()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "InfoGui"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 200, 0, 140)  -- Увеличена высота рамки
+    mainFrame.Position = UDim2.new(0, 20, 0.5, -70) -- Скорректирована позиция
+    mainFrame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    mainFrame.BorderColor3 = Color3.new(0.4, 0.4, 0.4)
+    mainFrame.BorderSizePixel = 2
+    mainFrame.Parent = screenGui
+    mainFrame.Name = "mainFrame"
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, 0, 0.25, 0)
+    titleLabel.Position = UDim2.new(0, 0, 0, 0)
+    titleLabel.BackgroundColor3 = Color3.new(1, 1, 1)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.TextColor3 = Color3.new(1, 1, 1)
+    titleLabel.TextSize = 18
+    titleLabel.Font = Enum.Font.ArialBold
+    titleLabel.Text = "developer - headtager"
+    titleLabel.Parent = mainFrame
+
+    local espStatusLabel = Instance.new("TextLabel")
+    espStatusLabel.Size = UDim2.new(1, 0, 0.25, 0)
+    espStatusLabel.Position = UDim2.new(0, 0, 0.25, 0)
+    espStatusLabel.BackgroundColor3 = Color3.new(1, 1, 1)
+    espStatusLabel.BackgroundTransparency = 1
+    espStatusLabel.TextColor3 = Color3.new(1, 1, 1)
+    espStatusLabel.TextSize = 16
+    espStatusLabel.Text = "ESP: Выключено"
+    espStatusLabel.Parent = mainFrame
+
+    local espColorLabel = Instance.new("TextLabel")
+    espColorLabel.Size = UDim2.new(1, 0, 0.25, 0)
+    espColorLabel.Position = UDim2.new(0, 0, 0.5, 0)
+    espColorLabel.BackgroundColor3 = Color3.new(1, 1, 1)
+    espColorLabel.BackgroundTransparency = 1
+    espColorLabel.TextColor3 = Color3.new(1, 1, 1)
+    espColorLabel.TextSize = 16
+    espColorLabel.Name = "espColorLabel"
+    espColorLabel.Text = "Цвет ESP: Белый"
+    espColorLabel.Parent = mainFrame
+	
+	local noclipStatusLabel = Instance.new("TextLabel")
+    noclipStatusLabel.Size = UDim2.new(1, 0, 0.25, 0)
+    noclipStatusLabel.Position = UDim2.new(0, 0, 0.75, 0)
+    noclipStatusLabel.BackgroundColor3 = Color3.new(1, 1, 1)
+    noclipStatusLabel.BackgroundTransparency = 1
+    noclipStatusLabel.TextColor3 = Color3.new(1, 1, 1)
+    noclipStatusLabel.TextSize = 16
+    noclipStatusLabel.Text = "Noclip: Выключен"
+    noclipStatusLabel.Parent = mainFrame
+
+    return {
+        mainFrame = mainFrame,
+        espStatusLabel = espStatusLabel,
+        espColorLabel = espColorLabel,
+		noclipStatusLabel = noclipStatusLabel
+    }
+end
+
+local function createControlGui()
+    local screenGui = Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("InfoGui")
+    
+    local controlFrame = Instance.new("Frame")
+    controlFrame.Size = UDim2.new(0, 200, 0, 150) -- Увеличена высота
+    controlFrame.Position = UDim2.new(1, -220, 0.5, -75) -- Скорректирована позиция
+    controlFrame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    controlFrame.BorderColor3 = Color3.new(0.4, 0.4, 0.4)
+    controlFrame.BorderSizePixel = 2
+    controlFrame.Parent = screenGui
+    
+    local textLabel1 = Instance.new("TextLabel")
+    textLabel1.Size = UDim2.new(1, 0, 0.25, 0)
+    textLabel1.Position = UDim2.new(0, 0, 0, 0)
+    textLabel1.BackgroundColor3 = Color3.new(1, 1, 1)
+    textLabel1.BackgroundTransparency = 1
+    textLabel1.TextColor3 = Color3.new(1, 1, 1)
+    textLabel1.TextSize = 16
+    textLabel1.Font = Enum.Font.ArialBold
+    textLabel1.Text = "T - Enable ESP"
+    textLabel1.Parent = controlFrame
+    
+    local textLabel2 = Instance.new("TextLabel")
+    textLabel2.Size = UDim2.new(1, 0, 0.25, 0)
+    textLabel2.Position = UDim2.new(0, 0, 0.25, 0)
+    textLabel2.BackgroundColor3 = Color3.new(1, 1, 1)
+    textLabel2.BackgroundTransparency = 1
+    textLabel2.TextColor3 = Color3.new(1, 1, 1)
+    textLabel2.TextSize = 16
+    textLabel2.Font = Enum.Font.ArialBold
+    textLabel2.Text = "H - Change ESP color"
+    textLabel2.Parent = controlFrame
+	
+	local textLabel3 = Instance.new("TextLabel")
+    textLabel3.Size = UDim2.new(1, 0, 0.25, 0)
+    textLabel3.Position = UDim2.new(0, 0, 0.5, 0)
+    textLabel3.BackgroundColor3 = Color3.new(1, 1, 1)
+    textLabel3.BackgroundTransparency = 1
+    textLabel3.TextColor3 = Color3.new(1, 1, 1)
+    textLabel3.TextSize = 16
+	textLabel3.Font = Enum.Font.ArialBold
+    textLabel3.Text = "J - Enable noclip"
+    textLabel3.Parent = controlFrame
+    
+    local textLabel4 = Instance.new("TextLabel")
+    textLabel4.Size = UDim2.new(1, 0, 0.25, 0)
+    textLabel4.Position = UDim2.new(0, 0, 0.75, 0)
+    textLabel4.BackgroundColor3 = Color3.new(1, 1, 1)
+    textLabel4.BackgroundTransparency = 1
+    textLabel4.TextColor3 = Color3.new(1, 1, 1)
+    textLabel4.TextSize = 16
+    textLabel4.Font = Enum.Font.ArialBold
+    textLabel4.Text = "K - Hide help menu"
+    textLabel4.Parent = controlFrame
+
+    return {
+        controlFrame = controlFrame
+    }
+end
+
+local infoGui = createInfoGui()
+local controlGui = createControlGui()
+
+local function updateInfoGui()
+    if infoGui and infoGui.espStatusLabel and infoGui.espColorLabel and infoGui.noclipStatusLabel then
+        infoGui.espStatusLabel.Text = "ESP: " .. (espEnabled and "Включено" or "Выключено")
+		local colorName = ({ "Белый", "Красный", "Зелёный", "Синий", "Оранжевый", "Желтый", "Голубой", "Фиолетовый" })[currentESPColorIndex]
+        infoGui.espColorLabel.Text = "Цвет ESP: " .. colorName
+		if colorName == "Оранжевый" then
+			infoGui.espColorLabel.TextSize = 14
+		elseif colorName == "Фиолетовый" then
+			infoGui.espColorLabel.TextSize = 13
+		else
+			infoGui.espColorLabel.TextSize = 16
+		end
+		infoGui.noclipStatusLabel.Text = "Noclip: " .. (noclipEnabled and "Включен" or "Выключен")
+    end
+    if controlGui then
+        if showControlGui then
+            controlGui.controlFrame.Visible = true
+        else
+            controlGui.controlFrame.Visible = false
+        end
+    end
+end
+
+local function createESP(character)
+    local esp = Instance.new("BoxHandleAdornment", character)
+    esp.Adornee = character
+    esp.ZIndex = 0
+    esp.Size = ESP_SIZE
+    esp.Transparency = ESP_TRANSPARENCY
+    esp.Color3 = ESP_COLOR_TABLE[currentESPColorIndex]
+    esp.AlwaysOnTop = true
+    esp.Name = "EspBox"
+    trackedCharacters[character] = esp
+end
+
+local function destroyESP(character)
+    if trackedCharacters[character] then
+        trackedCharacters[character]:Destroy()
+        trackedCharacters[character] = nil
+    end
+end
+
+local function updateESP()
+    if not espEnabled then
+		for character, esp in pairs(trackedCharacters) do
+			destroyESP(character)
+		end
+		return
+	end
+
+	for character, esp in pairs(trackedCharacters) do
+		if not esp.Parent or not character:FindFirstChild("Humanoid") then
+			destroyESP(character)
+		else
+			esp.Color3 = ESP_COLOR_TABLE[currentESPColorIndex]
+		end
+	end
+	
+	local localPlayer = Players.LocalPlayer
+	local localTeam = localPlayer.Team
+	
+    for _, character in ipairs(Workspace:GetChildren()) do
+        if character:IsA("Model") and character:FindFirstChild("Humanoid") then
+            local player = Players:GetPlayerFromCharacter(character)
+            if player and player ~= localPlayer then
+				local team = player.Team
+                if team ~= localTeam then
+					if not trackedCharacters[character] then
+						createESP(character)
+					end
+                else
+					destroyESP(character)
+                end
+            end
+        end
+    end
+end
+
+-- Отслеживание смерти игрока
+local function onCharacterAdded(character)
+    local humanoid = character:FindFirstChild("Humanoid")
+    if humanoid then
+        local function OnDied()
+            destroyESP(character)
+        end
+        humanoid.Died:Connect(OnDied)
+    end
+end
+
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(onCharacterAdded)
+end)
+
+
+-- Обработка нажатия клавиш
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+	if gameProcessedEvent then return end
+	
+	if input.KeyCode == Enum.KeyCode.T then
+		espEnabled = not espEnabled
+		updateInfoGui()
+	elseif input.KeyCode == Enum.KeyCode.H then
+		currentESPColorIndex = currentESPColorIndex + 1
+		if currentESPColorIndex > #ESP_COLOR_TABLE then
+			currentESPColorIndex = 1
+		end
+		updateInfoGui()
+	elseif input.KeyCode == Enum.KeyCode.K then
+		showControlGui = not showControlGui
+		updateInfoGui()
+    elseif input.KeyCode == Enum.KeyCode.J then
+        noclipEnabled = not noclipEnabled
+		local Plr = Players.LocalPlayer
+        if noclipEnabled then
+			noclipSteppedConnection = RunService.Stepped:Connect(function()
+				for a, b in pairs(Workspace:GetChildren()) do
+					if b.Name == Plr.Name then
+						for i, v in pairs(Workspace[Plr.Name]:GetChildren()) do
+							if v:IsA("BasePart") then
+								v.CanCollide = false
+							end 
+						end
+					end 
+				end
+			end)
+		else
+			if noclipSteppedConnection then
+				noclipSteppedConnection:Disconnect()
+			end
+		end
+		updateInfoGui()
+	elseif input.KeyCode == Enum.KeyCode.J then
+		noclipEnabled = not noclipEnabled
+		local Plr = Players.LocalPlayer
+		if noclipEnabled then
+			noclipSteppedConnection = RunService.Stepped:Connect(function()
+				for a, b in pairs(Workspace:GetChildren()) do
+					if b.Name == Plr.Name then
+						for i, v in pairs(Workspace[Plr.Name]:GetChildren()) do
+							if v:IsA("BasePart") then
+								v.CanCollide = false
+							end 
+						end
+					end 
+				end
+			end)
+		else
+			if noclipSteppedConnection then
+				noclipSteppedConnection:Disconnect()
+			end
+		end
+		updateInfoGui()
+	end
+end)
+
+-- Выполняем обновление ESP каждый кадр
+RunService.RenderStepped:Connect(function()
+	updateESP()
+    updateInfoGui()
+end)
